@@ -32,13 +32,56 @@ def make_luminoso_space(docDir, studyDir):
     model.learn_from(docDir,studyDir)
     return model
 
+posMovieText = 'Awesome fabulous loved must see great excited going'
+negMovieText = 'Boring terrible fucking horrible sucked wasted'
+
 def make_canonical_vectors(model, posText, negText):
     posVec = model.vector_from_text(posText)
     negVec = model.vector_from_text(negText)
-    return (posVec, negVec)
+    return (normalize(posVec), normalize(negVec))
+
+def norm(vec):
+    return numpy.sqrt(numpy.dot(vec,vec))
+
+def normalize(vec):
+    # / in numpy is elementwise divide, matlab's ./
+    return vec/norm(vec)
 
 def get_pos_and_neg_scores(model, posVec, negVec, text):
-    vec = model.vector_from_text(text)
+    vec = normalize(model.vector_from_text(text))
     posScore = numpy.dot(vec, posVec)
     negScore = numpy.dot(vec, negVec)
     return posScore, negScore
+
+def classifyTweets(tweetDict, model, posVec, negVec):
+    newDict = {}  # Could make this more efficient later by modding same structure
+    for topic, tweetlist in tweetDict.iteritems():
+        newTweetlist = []
+        for tweetTuple in tweetlist:
+            tweetText = tweetTuple[1]  # Todo:  make this a structure
+            classification = classifyTweet(tweetText, model, posVec, negVec)
+            newTuple = (tweetTuple[0], tweetText,classification)
+            newTweetlist.append(newTuple)
+        newDict[topic] = newTweetlist
+    return newDict
+
+def classifyTweet(tweetText, model, posVec, negVec):
+    pos, neg = get_pos_and_neg_scores(model, posVec, negVec, tweetText)
+    if pos > neg:
+        return 'pos'
+    return 'neg'
+
+# Count classifications:  Returns dict of topic:{pos:count, neg:count}
+def countClassifications(tweetDict):
+    sentimentDict = {}
+    for topic, classifiedList in tweetDict.iteritems():
+        posCount = 0
+        negCount = 0
+        for classifiedTweet in classifiedList:
+            if classifiedTweet[2] == 'pos':
+                posCount = posCount + 1
+            elif classifiedTweet[2] == 'neg':
+                negCount = negCount + 1
+        thisDict = {'pos':posCount, 'neg':negCount}
+        sentimentDict[topic] = thisDict
+    return sentimentDict
