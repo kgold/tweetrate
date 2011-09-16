@@ -6,6 +6,7 @@
 import os
 import luminoso2
 import numpy
+from scikits.learn import svm
 
 # make_luminoso_files:  convert my tweetDict to a directory full of
 # files, as luminoso expects
@@ -28,7 +29,7 @@ def make_luminoso_space(docDir, studyDir):
     if not os.path.isdir(studyDir):
         model = luminoso2.make_common_sense(studyDir, 'en')
     else:
-        model = luminoso2.load(studyDir, 'en')
+        model = luminoso2.load(studyDir)
     model.learn_from(docDir,studyDir)
     return model
 
@@ -47,11 +48,38 @@ def normalize(vec):
     # / in numpy is elementwise divide, matlab's ./
     return vec/norm(vec)
 
+# Simply getting the angle like this doesn't appear to work well...
+# trying SVMs instead.
 def get_pos_and_neg_scores(model, posVec, negVec, text):
     vec = normalize(model.vector_from_text(text))
     posScore = numpy.dot(vec, posVec)
     negScore = numpy.dot(vec, negVec)
     return posScore, negScore
+
+def make_svm(model, labeledTweetDict):
+    vector_list = []
+    answer_list = []
+    classifier = svm.SVC()
+    for topic, tweetlist in tweetDict.iteritems():
+        for tweet in tweetlist:
+            vector_list.append(model.vector_from_text(tweet[1]))
+            answer_list.append(sentToNumber(tweet[2]))
+    data = numpy.array(vector_list)
+    target = numpy.array(answer_list)
+    classifier.fit(data,target)
+    return classifier
+
+def svm_classify(model, svm, tweetText):
+    vector = model.vector_from_text(tweetText)
+    prediction = svm.predict(vector)
+    return prediction
+
+def sentToNumber(sentClass):
+    if sentClass == 'pos':
+        return 1.0
+    if sentClass == 'neg':
+        return -1.0
+    return 0
 
 def classifyTweets(tweetDict, model, posVec, negVec):
     newDict = {}  # Could make this more efficient later by modding same structure
@@ -85,3 +113,33 @@ def countClassifications(tweetDict):
         thisDict = {'pos':posCount, 'neg':negCount}
         sentimentDict[topic] = thisDict
     return sentimentDict
+
+# Get ground truth:  interactively label a set of tweets for sentiment
+# 0 = neutral, p = positive, n = negative
+# skip -- go to next topic
+# stop -- stop
+# Optional second parameter picks up at first unlabeled topic
+def getGroundTruth(tweetDict, newDict = {}):
+    labelShort = ''
+    for topic in tweetDict:
+        if topic in newDict: continue # skip past what we were adding last time
+        newList = []
+        for tweet in tweetDict[topic]:
+            labelShort = ''
+            while (not (labelShort == 'n' or labelShort == 'p' or labelShort == 'stop' or labelShort == 'skip' or labelShort == '0')):
+                labelShort = raw_input(tweet[1])
+            if labelShort == 'n':
+                label = 'neg'
+            elif labelShort == 'p':
+                label = 'pos'
+            elif labelShort == '0':
+                label = 'neutral'
+            if labelShort == 'skip' or labelShort == 'stop': break
+            newTuple = tweet[0],tweet[1],label
+            newList.append(newTuple)
+        newDict[topic] = newList
+        if labelShort == 'stop': break
+    return newDict
+
+                
+
