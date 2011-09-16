@@ -60,7 +60,7 @@ def make_svm(model, labeledTweetDict):
     vector_list = []
     answer_list = []
     classifier = svm.SVC()
-    for topic, tweetlist in tweetDict.iteritems():
+    for topic, tweetlist in labeledTweetDict.iteritems():
         for tweet in tweetlist:
             vector_list.append(model.vector_from_text(tweet[1]))
             answer_list.append(sentToNumber(tweet[2]))
@@ -71,7 +71,8 @@ def make_svm(model, labeledTweetDict):
 
 def svm_classify(model, svm, tweetText):
     vector = model.vector_from_text(tweetText)
-    prediction = svm.predict(vector)
+    print vector
+    prediction = svm.predict(numpy.array(vector))
     return prediction
 
 def sentToNumber(sentClass):
