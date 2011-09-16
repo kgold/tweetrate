@@ -6,6 +6,7 @@
 import os
 import luminoso2
 import numpy
+import re
 from scikits.learn import svm
 
 # make_luminoso_files:  convert my tweetDict to a directory full of
@@ -48,13 +49,28 @@ def normalize(vec):
     # / in numpy is elementwise divide, matlab's ./
     return vec/norm(vec)
 
-# Simply getting the angle like this doesn't appear to work well...
-# trying SVMs instead.
-def get_pos_and_neg_scores(model, posVec, negVec, text):
+# Fixing this so we find the angle to posVec - negVec
+# ...hey, this ain't bad
+def get_sentiment_score(model, posVec, negVec, text):
     vec = normalize(model.vector_from_text(text))
-    posScore = numpy.dot(vec, posVec)
-    negScore = numpy.dot(vec, negVec)
-    return posScore, negScore
+    sentimentVec = normalize(posVec - negVec)
+    sentimentScore = numpy.dot(vec, sentimentVec)
+    return sentimentScore
+
+# topic_replace:  Replace the topic of interest with TOPIC throughout
+# the tweetdict.  This is common practice in sentiment analysis.
+# Should precede labeling (or creating the space, for that matter)
+def topic_replace(tweetDict):
+    newDict = {}
+    for topic, tweetlist in tweetDict.iteritems():
+        newtweetlist = []
+        for tweet in tweetlist:
+            newText = re.sub(topic.lower(),'TOPIC',tweet[1].lower())
+            newTuple = tweet[0],newText
+            newtweetlist.append(newTuple)
+        newDict[topic] = newtweetlist
+    return newDict
+
 
 def make_svm(model, labeledTweetDict):
     vector_list = []
