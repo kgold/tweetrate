@@ -9,9 +9,8 @@ import numpy
 import re
 import json
 import math
+import time
 from scikits.learn import svm
-# GNB does not work -- avoid, avoid!
-from scikits.learn.naive_bayes import GNB
 
 # make_luminoso_files:  convert my tweetDict to a directory full of
 # files, as luminoso expects
@@ -57,7 +56,7 @@ def normalize(vec):
     return vec/norm(vec)
 
 # Fixing this so we find the angle to posVec - negVec
-# ...hey, this ain't bad
+# ...but it's still not really useable without some classifier
 def get_sentiment_vec(model, posText, negText):
     (posVec, negVec) = make_canonical_vectors(model,posText,negText)
     sentimentVec = normalize(posVec - negVec)
@@ -119,14 +118,6 @@ def scale(datamatrix, columnMeans, columnDevs):
         for row in range(datamatrix.shape[0]):
             scaledMatrix[row,:] = (datamatrix[row,:] - columnMeans)/columnDevs
     return scaledMatrix
-
-# Trying Gaussian Naive Bayes so we get an interpretable number
-# (a confidence) -- also has fewer params
-def make_gnb(model, labeledTweetDict):
-    classifier = GNB()
-    data, target = make_dataset(model,labeledTweetDict)
-    classifier.fit(data,target)
-    return classifier
 
 # C: governs tradeoff between overfitting and underfitting.
 # C = 10 worked reasonably for the movies.
@@ -276,7 +267,6 @@ def makeTuples(labeledDict, filename):
     return tupleList
 
 # Look for time of best change using max likelihood
-# Slow but it will do the job
 def bestChangeTime(labeledTweetDict, minTime, maxTime):
     timeList = []
     sentValueList = []
@@ -304,7 +294,28 @@ def bestChangeTime(labeledTweetDict, minTime, maxTime):
         if likelihood > bestLogLikelihood:
             bestLogLikelihood = likelihood
             bestTime = timeList[i+1]
-    return bestTime
+    # For recursion, we may want the log likelihood ratio
+    totalLikelihood = getLikelihood(pCounts[len(sentValueList)-1], nCounts[len(sentValueList)-1],neuCounts[len(sentValueList)-1])
+    improvement = bestLogLikelihood - totalLikelihood
+    return bestTime, improvement
+
+# This is essentially the rest of Fisher's dynamic programming approach.
+# Inefficient implementation at first -- we'll see if we need speedup
+def recursiveBestChanges(labeledTweetDict, minTime, maxTime, thresh, pointList = None):
+    if pointList is None:
+        pointList = []
+    changePoints = pointList
+    changeTime, improvement = bestChangeTime(labeledTweetDict, minTime, maxTime)
+    if improvement > thresh:
+        changePoints.append(changeTime)
+        changePoints = recursiveBestChanges(labeledTweetDict, minTime,changeTime, thresh, changePoints)
+        changePoints = recursiveBestChanges(labeledTweetDict, changeTime,maxTime,thresh,changePoints)
+    return changePoints
+
+def printReadableTimes(timelist):
+    for myTime in timelist:
+        print time.ctime(myTime)
+    
 
 def countSents(valueArray):
     pCounts  = [0]
@@ -333,3 +344,4 @@ def getLikelihood(p, n, neu):
     neuProb = (neu + 1.0) / pseudoTotal
     likelihood = math.log(pProb) * p + math.log(nProb) * n + math.log(neuProb) * neu
     return likelihood
+
